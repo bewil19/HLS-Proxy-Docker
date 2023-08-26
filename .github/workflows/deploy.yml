@@ -1,0 +1,25 @@
+on:
+    push:
+        branches:
+            - v03
+name: Docker Image CI
+
+jobs:
+    docker-deploy:
+        name: Deploy to Docker Hub
+        runs-on: ubuntu-latest
+        steps:
+            - name: Get Latest Code
+              uses: actions/checkout@v3
+
+            - name: Docker Login
+              run: |
+                docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+
+            - name: Build Docker Image
+              run: |
+                docker build . --file Dockerfile --tag bewil1990/hls-proxy-docker:${{ github.sha }}
+
+            - name: Push to Docker Hub
+              run: |
+                docker push bewil1990/hls-proxy-docker:${{ github.sha }}
