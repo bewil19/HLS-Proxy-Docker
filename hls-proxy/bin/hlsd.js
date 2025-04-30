@@ -34,6 +34,7 @@ const server = (use_tls)
 const middleware = require('../proxy')({
   is_secure:                            use_tls,
   host:                                 normalize_host(argv_vals["--host"], argv_vals["--port"]),
+  copy_req_headers:                     argv_vals["--copy-req-headers"],
   req_headers:                          argv_vals["--req-headers"],
   req_options:                          argv_vals["--req-options"],
   hooks:                                argv_vals["--hooks"],
@@ -44,8 +45,11 @@ const middleware = require('../proxy')({
   cache_storage:                        argv_vals["--cache-storage"],
   cache_storage_fs_dirpath:             argv_vals["--cache-storage-fs-dirpath"],
   debug_level:                          argv_vals["-v"],
-  acl_whitelist:                        argv_vals["--acl-whitelist"],
-  http_proxy:                           argv_vals["--http-proxy"]
+  acl_ip:                               argv_vals["--acl-ip"],
+  acl_pass:                             argv_vals["--acl-pass"],
+  http_proxy:                           argv_vals["--http-proxy"],
+  manifest_extension:                   argv_vals["--manifest-extension"],
+  segment_extension:                    argv_vals["--segment-extension"]
 })
 
 if (middleware.connection)

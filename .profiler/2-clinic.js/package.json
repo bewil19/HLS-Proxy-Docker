@@ -1,0 +1,15 @@
+{
+  "name": "clinicjs-profiler",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "doctor":       "cross-env NO_INSIGHT=1 clinic doctor       --no-open -- node ../../hls-proxy/bin/hlsd.js --port 8080 --copy-req-headers --req-insecure",
+    "bubbleprof":   "cross-env NO_INSIGHT=1 clinic bubbleprof   --no-open -- node ../../hls-proxy/bin/hlsd.js --port 8080 --copy-req-headers --req-insecure",
+    "flame":        "cross-env NO_INSIGHT=1 clinic flame        --no-open -- node ../../hls-proxy/bin/hlsd.js --port 8080 --copy-req-headers --req-insecure",
+    "heapprofiler": "cross-env NO_INSIGHT=1 clinic heapprofiler --no-open -- node ../../hls-proxy/bin/hlsd.js --port 8080 --copy-req-headers --req-insecure"
+  },
+  "devDependencies": {
+    "clinic": "13.0.0",
+    "cross-env": "7.0.3"
+  }
+}

@@ -25,17 +25,24 @@ const logger = (req, res, next) => {
 }
 
 const middleware = require('../../../hls-proxy/proxy')({
-  is_secure:      false,
-  host:           null,
-  req_headers:    null,
-  req_options:    null,
-  hooks:          null,
-  cache_segments: true,
-  max_segments:   20,
-  cache_timeout:  60,
-  cache_key:      0,
-  debug_level:    (logger_only ? -1 : 3),
-  acl_whitelist:  null
+  is_secure:                false,
+  host:                     null,
+  copy_req_headers:         false,
+  req_headers:              null,
+  req_options:              null,
+  hooks:                    null,
+  cache_segments:           true,
+  max_segments:             20,
+  cache_timeout:            60,
+  cache_key:                0,
+  cache_storage:            null,
+  cache_storage_fs_dirpath: null,
+  debug_level:              (logger_only ? -1 : 3),
+  acl_ip:                   null,
+  acl_pass:                 null,
+  http_proxy:               null,
+  manifest_extension:       null,
+  segment_extension:        null
 })
 
 app.use(router1)

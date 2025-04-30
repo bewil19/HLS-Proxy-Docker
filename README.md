@@ -13,7 +13,8 @@
 * inject custom HTTP headers in all outbound proxied requests
 * prefetch video segments (.ts files)
 * use a hook function to conditionally decide which video segments to prefetch
-* use a hook function to conditionally redirect URLs in the playlist (before they're modified to pass through the proxy)
+* use a hook function to conditionally redirect URLs in the playlist (_before_ and/or _after_ they're modified to pass through the proxy)
+* use a hook function to conditionally rewrite URLs after they're received by the proxy
 
 #### Benefits:
 
@@ -112,6 +113,7 @@ options:
 --tls
 --host <host>
 --port <number>
+--copy-req-headers
 --req-headers <filepath>
 --origin <header>
 --referer <header>
@@ -131,11 +133,14 @@ options:
 --cache-storage <adapter>
 --cache-storage-fs-dirpath <dirpath>
 -v <number>
---acl-whitelist <ip_address_list>
+--acl-ip <ip_address_list>
+--acl-pass <password_list>
 --http-proxy <http[s]://[user:pass@]hostname:port>
 --tls-cert <filepath>
 --tls-key <filepath>
 --tls-pass <filepath>
+--manifest-extension <ext>
+--segment-extension <ext>
 ```
 
 #### Options:
@@ -147,11 +152,15 @@ options:
     * _--tls-pass_
   * the values assigned to these options enable the use of a self-signed security certificate that is included in both the git repo and npm package, within the directory:
     * [`./hls-proxy/servers/cert`](https://github.com/warren-bank/HLS-Proxy/tree/master/hls-proxy/servers/cert)
+  * when all of these option are properly specified:
+    * the `https:` protocol is used by all URLs in modified HLS manifests
 * _--host_ is an IP or hostname with an optional port number that can be resolved and is reachable by clients
   * ex: `192.168.0.100:8080`
   * used to modify URLs in .m3u8 files
   * when this option is specified without a port number:
     * the value of the _--port_ option is appended
+  * when this option is specified and the port number is `443`:
+    * the `https:` protocol is used by all URLs in modified HLS manifests
   * when this option is not specified:
     * the value of the ["Host"](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Host) HTTP request header is used
 * _--port_ is the port number that the server listens on
@@ -159,6 +168,7 @@ options:
   * when this option is not specified:
     * HTTP proxy binds to: `80`
     * HTTPS proxy binds to: `443`
+* _--copy-req-headers_ is a flag to enable the duplication of all HTTP request headers sent to the proxy &rarr; to the request made by the proxy to the video server
 * _--req-headers_ is the filepath to a JSON data _Object_ containing key:value pairs
   * each _key_ is the name of an HTTP header to send in every outbound request
 * _--origin_ is the value of the corresponding HTTP request header
@@ -225,6 +235,10 @@ options:
       * conditionally modify the content of .m3u8 files __before__ they are parsed to extract URLs
     * `"redirect": (url) => new_url`
       * conditionally redirect the URLs encountered in .m3u8 files __before__ they are modified to pass through the proxy
+    * `"redirect_final": (url) => new_url`
+      * conditionally redirect the URLs encountered in .m3u8 files __after__ they are modified to pass through the proxy
+    * `"rewrite": (url) => new_url`
+      * conditionally rewrite the URLs requested by clients __before__ they are proxied
     * `"prefetch": (url) => boolean`
       * conditionally decide whether to prefetch video segments on a per-URL basis
       * return value must be a strict boolean type (ie: `true` or `false`)
@@ -352,8 +366,10 @@ options:
     * show an enhanced technical trace (useful while debugging unexpected behavior)
   * `4`:
     * show the content of .m3u8 files (both before and after URLs are modified)
-* _--acl-whitelist_ restricts proxy server access to clients at IP addresses in whitelist
+* _--acl-ip_ restricts proxy server access to clients at IP addresses in whitelist
   * ex: `"192.168.1.100,192.168.1.101,192.168.1.102"`
+* _--acl-pass_ restricts proxy server access to requests that include a `password` querystring parameter having a value in whitelist
+  * ex: `"1111,2222,3333,4444,5555"`
 * --http-proxy enables all outbound HTTP and HTTPS requests from HLS-Proxy to be tunnelled through an additional external web proxy server
   * SOCKS proxies are not supported
   * ex: `http://myusername:mypassword@myproxy.example.com:1234`
@@ -361,6 +377,10 @@ options:
 * _--tls-key_ is the filepath to the private key for the _--tls-cert_ security certificate
 * _--tls-pass_ is the filepath to a text file containing the security passphrase for the _--tls-key_ private key
   * optional, not required when the _--tls-key_ private key was created without a security passphrase
+* _--manifest-extension_ is the file extension associated with HLS manifests
+  * default value: `m3u8`
+* _--segment-extension_ is the file extension associated with media segments
+  * default value: `ts`
 
 #### Examples:
 
@@ -597,8 +617,8 @@ curl --silent --insecure "$URL"
   - system requirements:
     * Node.js version: v8.6.0 (and higher)
       - transitive [dependency](https://github.com/warren-bank/HLS-Proxy/blob/v1.0.1/package.json#L13-L14) requirements:
-        * v8.06.00+: [`@warren-bank/node-process-argv`](https://github.com/warren-bank/node-process-argv#requirements)
-        * v8.06.00+: [`@warren-bank/node-request`](https://github.com/warren-bank/node-request#requirements)
+        * v08.06.00+: [`@warren-bank/node-process-argv`](https://github.com/warren-bank/node-process-argv#requirements)
+        * v08.06.00+: [`@warren-bank/node-request`](https://github.com/warren-bank/node-request#requirements)
 * `v2.x`
   - commit history is in branch: [`v02`](https://github.com/warren-bank/HLS-Proxy/commits/v02)
   - summary:
@@ -610,8 +630,8 @@ curl --silent --insecure "$URL"
   - system requirements:
     * Node.js version: v8.6.0 (and higher)
       - transitive [dependency](https://github.com/warren-bank/HLS-Proxy/blob/v2.0.3/package.json#L13-L14) requirements:
-        * v8.06.00+: [`@warren-bank/node-process-argv`](https://github.com/warren-bank/node-process-argv#requirements)
-        * v8.06.00+: [`@warren-bank/node-request`](https://github.com/warren-bank/node-request#requirements)
+        * v08.06.00+: [`@warren-bank/node-process-argv`](https://github.com/warren-bank/node-process-argv#requirements)
+        * v08.06.00+: [`@warren-bank/node-request`](https://github.com/warren-bank/node-request#requirements)
 * `v3.x`
   - commit history is in branch: [`v03`](https://github.com/warren-bank/HLS-Proxy/commits/v03)
   - summary:
@@ -622,12 +642,10 @@ curl --silent --insecure "$URL"
         * important requirement: the path for a custom route needs to include exactly one unnamed [parameter](https://expressjs.com/en/guide/routing.html#route-parameters) that matches the base64 encoded URL and (optionally) a file extension (ex: `'/proxy/*'`)
         * the use of nested routers is supported
   - system requirements:
-    * Node.js version: v16.0.0 (and higher)
-      - transitive [dependency](https://github.com/warren-bank/HLS-Proxy/blob/v3.4.0/package.json#L13-L14) requirements:
-        * v8.06.00+: [`@warren-bank/node-process-argv`](https://github.com/warren-bank/node-process-argv#requirements)
-        * v8.06.00+: [`@warren-bank/node-request`](https://github.com/warren-bank/node-request#requirements)
-      - [ES6 support](http://node.green/)
-        * v16.00.00+: [`RegExp` 'd' flag](https://node.green/#ES2022-features-RegExp-Match-Indices---hasIndices-----d--flag-)
+    * Node.js version: v8.6.0 (and higher)
+      - transitive [dependency](https://github.com/warren-bank/HLS-Proxy/blob/v3.5.1/package.json#L13-L14) requirements:
+        * v08.06.00+: [`@warren-bank/node-process-argv`](https://github.com/warren-bank/node-process-argv#requirements)
+        * v08.06.00+: [`@warren-bank/node-request`](https://github.com/warren-bank/node-request#requirements)
 
 - - - -
 

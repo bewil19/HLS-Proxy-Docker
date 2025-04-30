@@ -1,11 +1,12 @@
-const {URL} = require('@warren-bank/url')
-const utils = require('./utils')
+const regexp_indices = require('./regexp_indices')
+const {URL}          = require('./url')
+const utils          = require('./utils')
 
 const regexs = {
   vod_start_at:        /#vod_start(?:_prefetch_at)?=((?:\d+:)?(?:\d+:)?\d+)$/i,
   m3u8_line_separator: /\s*[\r\n]+\s*/,
   m3u8_line_landmark:  /^(#[^:]+[:]?)/,
-  m3u8_line_url:       /URI=["']([^"']+)["']/id
+  m3u8_line_url:       regexp_indices.updateRegExp(/URI=["']([^"']+)["']/i)
 }
 
 const url_location_landmarks = {
@@ -13,6 +14,7 @@ const url_location_landmarks = {
     same_line: [
       '#EXT-X-MEDIA:',
       '#EXT-X-I-FRAME-STREAM-INF:',
+      '#EXT-X-IMAGE-STREAM-INF:',
       '#EXT-X-RENDITION-REPORT:',
       '#EXT-X-DATERANGE:',
       '#EXT-X-CONTENT-STEERING:'
@@ -110,7 +112,7 @@ const parse_HHMMSS_to_seconds = function(str) {
 //   prefetch_urls: [],
 //   modified_m3u8: ''
 // }
-const parse_manifest = function(m3u8_content, m3u8_url, referer_url, hooks, cache_segments, debug, vod_start_at_ms, redirected_base_url, should_prefetch_url) {
+const parse_manifest = function(m3u8_content, m3u8_url, referer_url, hooks, cache_segments, debug, vod_start_at_ms, redirected_base_url, should_prefetch_url, manifest_extension, segment_extension, qs_password) {
   const m3u8_lines = m3u8_content.split(regexs.m3u8_line_separator)
   m3u8_content = null
 
@@ -123,7 +125,7 @@ const parse_manifest = function(m3u8_content, m3u8_url, referer_url, hooks, cach
       redirect_embedded_url(embedded_url, hooks, m3u8_url, debug)
       if (validate_embedded_url(embedded_url)) {
         finalize_embedded_url(embedded_url, vod_start_at_ms, debug)
-        encode_embedded_url(embedded_url, redirected_base_url, debug)
+        encode_embedded_url(embedded_url, hooks, redirected_base_url, debug, manifest_extension, segment_extension, qs_password)
         get_prefetch_url(embedded_url, should_prefetch_url, prefetch_urls)
         modify_m3u8_line(embedded_url, m3u8_lines)
       }
@@ -169,7 +171,7 @@ const extract_embedded_urls = function(m3u8_lines, m3u8_url, referer_url, meta_d
       if (meta_data !== null)
         extract_meta_data(meta_data, m3u8_line, matching_landmark)
 
-      matches = regexs.m3u8_line_url.exec(m3u8_line)
+      matches = regexp_indices.exec(regexs.m3u8_line_url, m3u8_line)
       if (!matches) continue
       matching_url = matches[1]
 
@@ -330,13 +332,32 @@ const finalize_embedded_url = function(embedded_url, vod_start_at_ms, debug) {
   }
 }
 
-const encode_embedded_url = function(embedded_url, redirected_base_url, debug) {
-  embedded_url.encoded_url = (embedded_url.unencoded_url)
-    ? `${redirected_base_url}/${ utils.base64_encode(embedded_url.unencoded_url) }.${embedded_url.url_type || 'other'}`
-    : ''
+const encode_embedded_url = function(embedded_url, hooks, redirected_base_url, debug, manifest_extension, segment_extension, qs_password) {
+  if (embedded_url.unencoded_url) {
+    let file_extension = embedded_url.url_type
+    if (file_extension) {
+      if (manifest_extension && (file_extension === 'm3u8'))
+        file_extension = manifest_extension
+      if (segment_extension && (file_extension === 'ts'))
+        file_extension = segment_extension
+    }
 
-  if (embedded_url.encoded_url)
+    embedded_url.encoded_url = `${redirected_base_url}/${ utils.base64_encode(embedded_url.unencoded_url) }.${file_extension || 'other'}`
+
+    if (qs_password)
+      embedded_url.encoded_url += `?password=${qs_password}`
+
     debug(3, 'redirecting (proxied):', embedded_url.encoded_url)
+
+    if (hooks && (hooks instanceof Object) && hooks.redirect_final && (typeof hooks.redirect_final === 'function')) {
+      embedded_url.encoded_url = hooks.redirect_final(embedded_url.encoded_url)
+
+      debug(3, 'redirecting (proxied, post-hook):', embedded_url.encoded_url)
+    }
+  }
+  else {
+    embedded_url.encoded_url = ''
+  }
 }
 
 const get_prefetch_url = function(embedded_url, should_prefetch_url, prefetch_urls = []) {
@@ -361,8 +382,8 @@ const modify_m3u8_line = function(embedded_url, m3u8_lines) {
   }
 }
 
-const modify_m3u8_content = function(params, segment_cache, m3u8_content, m3u8_url, referer_url, redirected_base_url) {
-  const {hooks, cache_segments, max_segments, debug_level} = params
+const modify_m3u8_content = function(params, segment_cache, m3u8_content, m3u8_url, referer_url, inbound_req_headers, redirected_base_url, qs_password) {
+  const {hooks, cache_segments, max_segments, debug_level, manifest_extension, segment_extension} = params
 
   const {has_cache, get_time_since_last_access, is_expired, prefetch_segment} = segment_cache
 
@@ -403,13 +424,13 @@ const modify_m3u8_content = function(params, segment_cache, m3u8_content, m3u8_u
           const matching_url = urls[0]
           urls[0] = undefined
 
-          promise = prefetch_segment(m3u8_url, matching_url, referer_url, dont_touch_access)
+          promise = prefetch_segment(m3u8_url, matching_url, referer_url, inbound_req_headers, dont_touch_access)
         }
 
         promise.then(() => {
           urls.forEach((matching_url, index) => {
             if (matching_url) {
-              prefetch_segment(m3u8_url, matching_url, referer_url, dont_touch_access)
+              prefetch_segment(m3u8_url, matching_url, referer_url, inbound_req_headers, dont_touch_access)
 
               urls[index] = undefined
             }
@@ -419,7 +440,7 @@ const modify_m3u8_content = function(params, segment_cache, m3u8_content, m3u8_u
     : null
 
   {
-    const parsed_manifest = parse_manifest(m3u8_content, m3u8_url, referer_url, hooks, cache_segments, debug, vod_start_at_ms, redirected_base_url, should_prefetch_url)
+    const parsed_manifest = parse_manifest(m3u8_content, m3u8_url, referer_url, hooks, cache_segments, debug, vod_start_at_ms, redirected_base_url, should_prefetch_url, manifest_extension, segment_extension, qs_password)
     is_vod          = !!parsed_manifest.meta_data.is_vod                  // default: false => hls live stream
     seg_duration_ms = parsed_manifest.meta_data.seg_duration_ms || 10000  // default: 10 seconds in ms
     prefetch_urls   = parsed_manifest.prefetch_urls

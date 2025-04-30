@@ -8,6 +8,7 @@ options:
 --tls
 --host <host>
 --port <number>
+--copy-req-headers
 --req-headers <filepath>
 --origin <header>
 --referer <header>
@@ -27,11 +28,14 @@ options:
 --cache-storage <adapter>
 --cache-storage-fs-dirpath <dirpath>
 -v <number>
---acl-whitelist <ip_address_list>
+--acl-ip <ip_address_list>
+--acl-pass <password_list>
 --http-proxy <http[s]://[user:pass@]hostname:port>
 --tls-cert <filepath>
 --tls-key <filepath>
 --tls-pass <filepath>
+--manifest-extension <ext>
+--segment-extension <ext>
 `
 
 module.exports = help
